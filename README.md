@@ -10,7 +10,7 @@ The service reads each site's public product list (`https://<domain>/products.js
 `/status` shows when each feed was last built, how many items it has, and any error.
 
 ## What's in each feed
-- One row per variant. Variants without a price or an image are skipped, because Microsoft rejects them.
+- One row per variant. Title = product name + colour (and other options such as keyboard) + " | Refurbished" in the site language. The condition/grade option is left out of titles. If the name already says refurbished, the suffix is not repeated.
 - `condition` = refurbished. `identifier_exists` = no (no GTINs).
 - Shipping is free in every country, matching the Shopify "Gratis levering" EU rate. It is written in Microsoft's `country::service:price` format. Microsoft requires shipping for Germany and Austria.
 - The sale price is used only when "compare at" is higher than the price.

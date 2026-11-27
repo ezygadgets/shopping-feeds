@@ -16,20 +16,31 @@ import time
 import urllib.error
 import urllib.request
 
-# country code -> site settings. "service" is the shipping service name shown to shoppers.
+# country code -> site settings. "service" is the shipping service name shown to shoppers;
+# "refurb" is the word appended to every title ("... | Refurbished").
 COUNTRIES = {
-    "nl": {"domain": "refurb-phone.nl", "currency": "EUR", "service": "Gratis verzending"},
-    "be": {"domain": "refurbphone.be", "currency": "EUR", "service": "Gratis verzending"},
-    "pt": {"domain": "refurbphone.pt", "currency": "EUR", "service": "Envio gratuito"},
-    "fr": {"domain": "refurbphone.fr", "currency": "EUR", "service": "Livraison gratuite"},
-    "es": {"domain": "refurbphone.es", "currency": "EUR", "service": "Envío gratuito"},
-    "ie": {"domain": "refurbphone.ie", "currency": "EUR", "service": "Free delivery"},
-    "de": {"domain": "refurbphone.de", "currency": "EUR", "service": "Gratis Versand"},
-    "at": {"domain": "refurbphone.at", "currency": "EUR", "service": "Gratis Versand"},
-    "dk": {"domain": "refurbphone.dk", "currency": "DKK", "service": "Gratis levering"},
-    "se": {"domain": "refurbphone.se", "currency": "SEK", "service": "Fri frakt"},
-    "fi": {"domain": "refurbphone.fi", "currency": "EUR", "service": "Ilmainen toimitus"},
+    "nl": {"domain": "refurb-phone.nl", "currency": "EUR", "service": "Gratis verzending", "refurb": "Refurbished"},
+    "be": {"domain": "refurbphone.be", "currency": "EUR", "service": "Gratis verzending", "refurb": "Refurbished"},
+    "pt": {"domain": "refurbphone.pt", "currency": "EUR", "service": "Envio gratuito", "refurb": "Recondicionado"},
+    "fr": {"domain": "refurbphone.fr", "currency": "EUR", "service": "Livraison gratuite", "refurb": "Reconditionné"},
+    "es": {"domain": "refurbphone.es", "currency": "EUR", "service": "Envío gratuito", "refurb": "Reacondicionado"},
+    "ie": {"domain": "refurbphone.ie", "currency": "EUR", "service": "Free delivery", "refurb": "Refurbished"},
+    "de": {"domain": "refurbphone.de", "currency": "EUR", "service": "Gratis Versand", "refurb": "Generalüberholt"},
+    "at": {"domain": "refurbphone.at", "currency": "EUR", "service": "Gratis Versand", "refurb": "Generalüberholt"},
+    "dk": {"domain": "refurbphone.dk", "currency": "DKK", "service": "Gratis levering", "refurb": "Istandsat"},
+    "se": {"domain": "refurbphone.se", "currency": "SEK", "service": "Fri frakt", "refurb": "Renoverad"},
+    "fi": {"domain": "refurbphone.fi", "currency": "EUR", "service": "Ilmainen toimitus", "refurb": "Kunnostettu"},
 }
+
+# Variant option names (in every site language) that hold the condition/grade.
+# These options are left out of titles.
+CONDITION_OPTIONS = {
+    "conditie", "condition", "grade", "zustand", "stand", "tilstand", "estado", "état", "etat",
+    "condição", "condição física", "condicao", "kunto", "skick", "staat",
+}
+# Words that already mean "refurbished"; if a title contains one, the suffix is not added twice.
+REFURB_WORDS = ("refurbished", "recondicionado", "reconditionné", "reacondicionado",
+                "generalüberholt", "istandsat", "renoverad", "kunnostettu")
 
 HEADER = [
     "id", "item_group_id", "title", "description", "link", "image_link",
@@ -96,6 +107,25 @@ def money(amount, currency):
     return f"{float(amount):.2f} {currency}"
 
 
+def variant_title(p, v, refurb_word):
+    """'<product> - <colour etc.> | <Refurbished>', leaving out the condition/grade option."""
+    title = clean(p.get("title"))
+    parts = []
+    for opt in p.get("options") or []:
+        name = clean(opt.get("name")).lower()
+        if name == "title" or name in CONDITION_OPTIONS:
+            continue
+        val = clean(v.get(f"option{opt.get('position')}"))
+        if val and val.lower() != "default title":
+            parts.append(val)
+    if parts:
+        title = f"{title} - {' / '.join(parts)}"
+    if not any(w in title.lower() for w in REFURB_WORDS):
+        suffix = f" | {refurb_word}"
+        title = title[:150 - len(suffix)].rstrip() + suffix  # keep the suffix inside Microsoft's 150-char limit
+    return title
+
+
 def rows_for(cc, cfg, products):
     country = cc.upper()
     cur = cfg["currency"]
@@ -116,10 +146,7 @@ def rows_for(cc, cfg, products):
                 list_price, sale = money(compare, cur), money(price, cur)
             else:
                 list_price, sale = money(price, cur), ""
-            title = clean(p.get("title"))
-            vt = clean(v.get("title"))
-            if vt and vt.lower() != "default title":
-                title = f"{title} - {vt}"
+            title = variant_title(p, v, cfg["refurb"])
             grams = v.get("grams") or 0
             yield [
                 f"{cc}_{v['id']}",
